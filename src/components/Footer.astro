@@ -1,0 +1,26 @@
+---
+import Logo from './Logo.astro';
+import { site } from '../data/site';
+const year = new Date().getFullYear();
+---
+<footer class="site-footer border-t" style="border-color: var(--line)">
+  <div class="shell flex flex-col gap-12 py-16 md:flex-row md:items-end md:justify-between">
+    <div>
+      <Logo variant="stacked" size={52} />
+      <p class="mt-6 max-w-xs text-sm leading-relaxed faint">{site.footer.note}</p>
+    </div>
+
+    <nav class="flex flex-wrap gap-x-8 gap-y-3" aria-label="Footer">
+      {site.footer.links.map((link) => (
+        <a
+          href={link.href}
+          class="text-[0.72rem] uppercase tracking-[0.18em] dim transition-colors duration-300 hover:text-gold"
+        >{link.label}</a>
+      ))}
+    </nav>
+  </div>
+
+  <div class="shell border-t py-6" style="border-color: var(--line-soft)">
+    <p class="text-[0.7rem] tracking-wide faint">© {year} {site.brand}. All rights reserved.</p>
+  </div>
+</footer>

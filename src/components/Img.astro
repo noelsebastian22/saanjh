@@ -1,0 +1,30 @@
+---
+/**
+ * Single place where image strategy is decided.
+ * Default: astro:assets optimises the remote file at build time (WebP, hashed).
+ * PUBLIC_RAW_IMAGES=1: emit a plain <img> and skip the fetch. Use for offline
+ * dev, or any network that can't reach images.unsplash.com.
+ */
+import { Image } from 'astro:assets';
+
+interface Props {
+  src: string;
+  alt: string;
+  width: number;
+  height: number;
+  class?: string;
+  loading?: 'eager' | 'lazy';
+  fetchpriority?: 'high' | 'low' | 'auto';
+  [key: string]: unknown;
+}
+
+const { src, alt, width, height, ...rest } = Astro.props;
+const raw = import.meta.env.PUBLIC_RAW_IMAGES === '1';
+---
+{
+  raw ? (
+    <img src={src} alt={alt} width={width} height={height} {...rest} />
+  ) : (
+    <Image src={src} alt={alt} width={width} height={height} {...rest} />
+  )
+}

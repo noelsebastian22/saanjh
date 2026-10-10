@@ -1,0 +1,144 @@
+---
+import Logo from './Logo.astro';
+import { site } from '../data/site';
+---
+<header
+  data-header
+  class="fixed inset-x-0 top-0 z-50 transition-all duration-500 ease-soft"
+>
+  <div class="shell flex items-center justify-between py-5">
+    <a href="#top" class="text-cream" aria-label={`${site.brand}, back to top`}>
+      <Logo variant="lockup" size={34} />
+    </a>
+
+    <nav class="hidden md:flex items-center gap-9" aria-label="Main">
+      {site.nav.map((item) => (
+        <a
+          href={item.href}
+          class="text-[0.8rem] uppercase tracking-[0.18em] dim transition-colors duration-300 hover:text-gold"
+        >{item.label}</a>
+      ))}
+    </nav>
+
+    <div class="flex items-center gap-3">
+      <a
+        href="#reserve"
+        class="rounded-full border border-gold/40 px-5 py-2 text-[0.72rem] uppercase tracking-[0.2em] text-gold transition-colors duration-300 hover:bg-gold hover:text-navy"
+      >Reserve</a>
+      <button
+        type="button"
+        class="menu-toggle md:hidden"
+        aria-expanded="false"
+        aria-controls="mobile-menu"
+        data-menu-toggle
+      >
+        <span class="sr-only">Menu</span>
+        <span class="menu-toggle__bar"></span>
+        <span class="menu-toggle__bar"></span>
+      </button>
+    </div>
+  </div>
+  <div class="h-px w-full" style="background: var(--line-soft)"></div>
+</header>
+
+<div id="mobile-menu" class="mobile-menu md:hidden" data-menu hidden>
+  <nav class="shell flex h-full flex-col justify-center gap-2" aria-label="Mobile">
+    {site.nav.map((item, i) => (
+      <a href={item.href} class="mobile-menu__link display" style={`--i:${i}`} data-menu-link>{item.label}</a>
+    ))}
+    <a
+      href="#reserve"
+      class="mobile-menu__cta mt-8 self-start rounded-full bg-gold px-8 py-3.5 text-[0.75rem] uppercase tracking-[0.2em] text-navy"
+      style={`--i:${site.nav.length}`}
+      data-menu-link
+    >Reserve a table</a>
+  </nav>
+</div>
+
+<style>
+  header { background: transparent; }
+  header:global(.scrolled),
+  header:global(.menu-open) {
+    background: color-mix(in srgb, var(--color-ink) 78%, transparent);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+
+  .menu-toggle {
+    width: 42px;
+    height: 42px;
+    border-radius: 999px;
+    border: 1px solid rgba(246, 241, 231, 0.2);
+    display: grid;
+    place-content: center;
+    gap: 6px;
+  }
+  .menu-toggle__bar {
+    display: block;
+    width: 16px;
+    height: 1px;
+    background: var(--color-cream);
+    transition: transform 0.4s var(--ease-soft);
+  }
+  /* Scoped styles outrank Tailwind's md:hidden, so hide it here on wider screens. */
+  @media (min-width: 768px) { .menu-toggle { display: none; } }
+  .menu-toggle[aria-expanded='true'] .menu-toggle__bar:nth-of-type(2) { transform: translateY(3.5px) rotate(45deg); }
+  .menu-toggle[aria-expanded='true'] .menu-toggle__bar:nth-of-type(3) { transform: translateY(-3.5px) rotate(-45deg); }
+
+  .mobile-menu {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    padding-top: 80px;
+    background: color-mix(in srgb, var(--color-ink) 86%, transparent);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+  .mobile-menu__link { font-size: clamp(2.4rem, 11vw, 3.4rem); color: var(--color-cream); }
+  .mobile-menu__link,
+  .mobile-menu__cta {
+    opacity: 0;
+    transform: translateY(16px);
+    transition: opacity 0.6s var(--ease-soft), transform 0.6s var(--ease-soft);
+    transition-delay: calc(var(--i) * 60ms + 80ms);
+  }
+  .mobile-menu:global(.is-open) .mobile-menu__link,
+  .mobile-menu:global(.is-open) .mobile-menu__cta { opacity: 1; transform: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mobile-menu__link, .mobile-menu__cta { transition: none; opacity: 1; transform: none; }
+  }
+</style>
+
+<script>
+  const toggle = document.querySelector<HTMLButtonElement>('[data-menu-toggle]');
+  const menu = document.querySelector<HTMLElement>('[data-menu]');
+  const header = document.querySelector<HTMLElement>('[data-header]');
+
+  if (toggle && menu && header) {
+    const label = toggle.querySelector('.sr-only');
+    const setOpen = (open: boolean) => {
+      toggle.setAttribute('aria-expanded', String(open));
+      if (label) label.textContent = open ? 'Close menu' : 'Menu';
+      header.classList.toggle('menu-open', open);
+      document.documentElement.style.overflow = open ? 'hidden' : '';
+      if (open) {
+        menu.hidden = false;
+        requestAnimationFrame(() => menu.classList.add('is-open'));
+      } else {
+        menu.classList.remove('is-open');
+        menu.hidden = true;
+      }
+    };
+
+    toggle.addEventListener('click', () => setOpen(toggle.getAttribute('aria-expanded') !== 'true'));
+    menu.querySelectorAll('[data-menu-link]').forEach((a) => a.addEventListener('click', () => setOpen(false)));
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && toggle.getAttribute('aria-expanded') === 'true') {
+        setOpen(false);
+        toggle.focus();
+      }
+    });
+    matchMedia('(min-width: 768px)').addEventListener('change', (e) => { if (e.matches) setOpen(false); });
+  }
+</script>

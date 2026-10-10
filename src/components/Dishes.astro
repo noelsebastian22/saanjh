@@ -1,0 +1,33 @@
+---
+import Img from './Img.astro';
+import { site } from '../data/site';
+const { dishes } = site;
+---
+<section class="section-y">
+  <div class="shell">
+    <p class="eyebrow reveal">{dishes.eyebrow}</p>
+    <h2 class="display reveal d1 mt-5 max-w-3xl text-[clamp(2.2rem,5.5vw,4.4rem)]">{dishes.title}</h2>
+
+    <div class="mt-16 flex flex-col gap-20">
+      {dishes.items.map((dish, i) => (
+        <article class={`grid items-center gap-10 md:grid-cols-2 ${i % 2 === 1 ? 'md:[&>figure]:order-2' : ''}`}>
+          <figure class="reveal overflow-hidden rounded-[var(--radius)]">
+            <Img
+              src={dish.img}
+              alt={dish.name}
+              width={1200}
+              height={900}
+              loading="lazy"
+              class="aspect-[4/3] w-full object-cover"
+            />
+          </figure>
+          <div class="reveal d2">
+            <h3 class="display text-[clamp(1.8rem,3.6vw,2.8rem)]">{dish.name}</h3>
+            <div class="reveal-line mt-5 h-px w-24" style="background: var(--gold-grad)"></div>
+            <p class="mt-6 text-base leading-relaxed dim">{dish.note}</p>
+          </div>
+        </article>
+      ))}
+    </div>
+  </div>
+</section>

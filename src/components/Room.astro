@@ -1,0 +1,228 @@
+---
+/**
+ * The Room. The logo drawn large: the photograph is the setting sun, framed
+ * by the same concentric arcs, sitting on a gold horizon with its reflection
+ * below and the first star out above. Paper-blossom petals drift across it;
+ * they are the "blossoms" the copy talks about, so no second photo is needed.
+ */
+import Img from './Img.astro';
+import { site } from '../data/site';
+const { room } = site;
+
+/* Hand-placed petals: x position (%), size (px), fall duration (s), delay (s),
+   sway distance (px) and whether it passes in front of or behind the frame. */
+const petals = [
+  { x: 4, s: 16, d: 15, delay: -2, sway: 38, front: true },
+  { x: 14, s: 11, d: 19, delay: -11, sway: 26, front: false },
+  { x: 24, s: 19, d: 13, delay: -6, sway: 44, front: true },
+  { x: 33, s: 12, d: 21, delay: -15, sway: 30, front: false },
+  { x: 44, s: 17, d: 16, delay: -1, sway: 40, front: true },
+  { x: 53, s: 10, d: 23, delay: -9, sway: 22, front: false },
+  { x: 61, s: 15, d: 17, delay: -13, sway: 36, front: true },
+  { x: 70, s: 18, d: 14, delay: -4, sway: 48, front: false },
+  { x: 79, s: 12, d: 20, delay: -17, sway: 28, front: true },
+  { x: 88, s: 14, d: 18, delay: -7.5, sway: 32, front: false },
+  { x: 95, s: 11, d: 22, delay: -19, sway: 24, front: true },
+  { x: 38, s: 9, d: 25, delay: -21, sway: 20, front: true },
+  { x: 66, s: 13, d: 19.5, delay: -3, sway: 34, front: true },
+  { x: 19, s: 15, d: 16.5, delay: -12, sway: 42, front: false },
+];
+---
+<section id="room" class="room section-y">
+  <div class="shell grid gap-[clamp(48px,7vw,110px)] md:grid-cols-12 md:items-center">
+    <div class="room__stage md:col-span-6">
+      <div class="room__window reveal">
+        <span class="room__ring room__ring--outer" aria-hidden="true"></span>
+        <span class="room__ring" aria-hidden="true"></span>
+        <figure class="room__frame">
+          <Img
+            src={room.img}
+            alt={room.alt}
+            width={1100}
+            height={1375}
+            loading="lazy"
+            class="room__img h-full w-full object-cover"
+          />
+        </figure>
+        <span class="room__horizon" aria-hidden="true"></span>
+        <span class="room__reflection" aria-hidden="true"></span>
+        <svg class="room__star" viewBox="0 0 20 20" aria-hidden="true">
+          <path d="M10 0c.9 7.2 2.8 9.1 10 10-7.2.9-9.1 2.8-10 10-.9-7.2-2.8-9.1-10-10 7.2-.9 9.1-2.8 10-10Z" />
+        </svg>
+      </div>
+
+      <div class="room__petals" aria-hidden="true">
+        {petals.map((p) => (
+          <span
+            class={`petal ${p.front ? 'petal--front' : 'petal--back'}`}
+            style={`--x:${p.x}%; --s:${p.s}px; --d:${p.d}s; --delay:${p.delay}s; --sway:${p.sway}px;`}
+          >
+            <svg viewBox="0 0 20 24"><path d="M10 23.5C4.2 19.6 1 14.6 1 9.6 1 4.8 4.4 1.2 7.4 1.2c1.3 0 2.1.9 2.6 2.4.5-1.5 1.3-2.4 2.6-2.4 3 0 6.4 3.6 6.4 8.4 0 5-3.2 10-9 13.9Z" /></svg>
+          </span>
+        ))}
+      </div>
+    </div>
+
+    <div class="md:col-span-6 lg:col-span-5 lg:col-start-8">
+      <p class="eyebrow reveal">{room.eyebrow}</p>
+      <h2 class="display reveal d1 mt-5 text-[clamp(2.4rem,5.4vw,4.6rem)]">{room.title}</h2>
+      {room.body.map((p, i) => (
+        <p class={`reveal d${i + 2} mt-6 max-w-md text-base leading-relaxed dim`}>{p}</p>
+      ))}
+      <a
+        href={room.cta.href}
+        class="room__link reveal d4 mt-10 inline-flex items-center gap-3 text-[0.75rem] uppercase tracking-[0.2em] text-gold"
+      >
+        <span>{room.cta.label}</span>
+        <span class="room__link-line" aria-hidden="true"></span>
+      </a>
+    </div>
+  </div>
+</section>
+
+<style>
+  .room { overflow: hidden; }
+
+  .room__stage {
+    position: relative;
+    padding: 9% 12% 12%;
+  }
+
+  .room__window {
+    position: relative;
+    z-index: 1;
+    aspect-ratio: 4 / 5;
+    max-width: 500px;
+    margin-inline: auto;
+  }
+
+  /* Oversized radii resolve to a perfect half circle on any width. */
+  .room__frame,
+  .room__ring {
+    position: absolute;
+    border-radius: 9999px 9999px 0 0;
+  }
+  .room__frame {
+    inset: 0;
+    margin: 0;
+    overflow: hidden;
+    background: var(--color-navy-2);
+  }
+  .room__frame::after {
+    /* Deepen the base of the photo so it sits on the horizon line. */
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(5, 9, 25, 0.5) 0%, rgba(5, 9, 25, 0) 35%);
+  }
+  .room__img { object-position: 46% 50%; }
+
+  /* The two arcs around the sun in the logo. */
+  .room__ring {
+    inset: -18px -18px 0;
+    border: 1px solid rgba(201, 162, 75, 0.6);
+    border-bottom: 0;
+  }
+  .room__ring--outer {
+    inset: -40px -40px 0;
+    border-color: rgba(201, 162, 75, 0.22);
+  }
+
+  /* Horizon, then the sun's reflection breaking up below it. */
+  .room__horizon {
+    position: absolute;
+    left: -16%;
+    right: -16%;
+    bottom: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--color-gold) 14%, var(--color-gold) 86%, transparent);
+  }
+  .room__reflection {
+    position: absolute;
+    left: 50%;
+    bottom: -18px;
+    width: 52%;
+    height: 1px;
+    transform: translateX(-50%);
+    background: rgba(201, 162, 75, 0.5);
+  }
+  .room__reflection::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 13px;
+    width: 46%;
+    height: 1px;
+    transform: translateX(-50%);
+    background: rgba(201, 162, 75, 0.3);
+  }
+
+  /* The first star of the evening. */
+  .room__star {
+    position: absolute;
+    top: -4%;
+    right: -14%;
+    width: 22px;
+    height: 22px;
+    fill: var(--color-gold-hi);
+    filter: drop-shadow(0 0 6px rgba(239, 215, 154, 0.6));
+    animation: first-star 4.5s ease-in-out infinite;
+  }
+  @keyframes first-star {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.55; transform: scale(0.82); }
+  }
+
+  /* Petals drift down across the whole left column. */
+  .room__petals {
+    position: absolute;
+    inset: -12% 0 -6%;
+    pointer-events: none;
+    container-type: size;
+  }
+  .petal {
+    position: absolute;
+    top: 0;
+    left: var(--x);
+    width: var(--s);
+    height: calc(var(--s) * 1.2);
+    animation: petal-fall var(--d) linear var(--delay) infinite;
+  }
+  .petal svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+    fill: var(--color-blossom);
+    animation: petal-sway calc(var(--d) / 3) ease-in-out var(--delay) infinite alternate;
+  }
+  .petal--back { z-index: 0; opacity: 0.55; filter: blur(0.6px); }
+  .petal--back svg { fill: var(--color-blossom-2); }
+  .petal--front { z-index: 2; opacity: 0.9; }
+
+  @keyframes petal-fall {
+    0% { transform: translateY(-20px); opacity: 0; }
+    8% { opacity: 1; }
+    88% { opacity: 1; }
+    100% { transform: translateY(calc(100cqh + 40px)); opacity: 0; }
+  }
+  @keyframes petal-sway {
+    0% { transform: translateX(calc(var(--sway) * -0.5)) rotate(-28deg) rotateY(0deg); }
+    50% { transform: translateX(0) rotate(12deg) rotateY(60deg); }
+    100% { transform: translateX(calc(var(--sway) * 0.5)) rotate(48deg) rotateY(0deg); }
+  }
+
+  .room__link-line {
+    display: block;
+    width: 36px;
+    height: 1px;
+    background: currentColor;
+    transition: width 0.5s var(--ease-soft);
+  }
+  .room__link:hover .room__link-line { width: 64px; }
+  .room__link:focus-visible { outline: 2px solid var(--color-gold-hi); outline-offset: 6px; border-radius: 4px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .petal, .petal svg, .room__star { animation: none; }
+    .petal { top: calc(var(--s) * 3); }
+  }
+</style>

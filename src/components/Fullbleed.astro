@@ -1,0 +1,38 @@
+---
+import Img from './Img.astro';
+import { site } from '../data/site';
+const { fullbleed } = site;
+---
+<div class="fullbleed relative isolate flex min-h-[80svh] items-center overflow-hidden">
+  <!-- Top and bottom edges feather into the night sky rather than cutting off. -->
+  <div class="fullbleed__media absolute inset-0 -z-10">
+    <Img
+      src={fullbleed.img}
+      alt={fullbleed.alt}
+      width={2000}
+      height={1333}
+      loading="lazy"
+      data-parallax="0.12"
+      class="absolute inset-x-0 -top-[10%] h-[120%] w-full object-cover"
+    />
+    <div class="absolute inset-0 bg-ink/65"></div>
+  </div>
+
+  <div class="shell w-full py-28">
+    <div class="max-w-3xl">
+      <h2 class="display reveal text-[clamp(2.2rem,6vw,4.8rem)]">{fullbleed.title}</h2>
+      <p class="reveal d1 mt-7 max-w-xl text-base leading-relaxed dim">{fullbleed.body}</p>
+      <a
+        href={fullbleed.cta.href}
+        class="reveal d2 mt-10 inline-block rounded-full border border-gold/50 px-8 py-3.5 text-[0.75rem] uppercase tracking-[0.2em] text-gold transition-colors duration-300 hover:bg-gold hover:text-navy"
+      >{fullbleed.cta.label}</a>
+    </div>
+  </div>
+</div>
+
+<style>
+  .fullbleed__media {
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 18%, #000 82%, transparent 100%);
+    mask-image: linear-gradient(to bottom, transparent 0%, #000 18%, #000 82%, transparent 100%);
+  }
+</style>

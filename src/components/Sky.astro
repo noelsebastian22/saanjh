@@ -1,0 +1,43 @@
+---
+/**
+ * Fixed night sky behind the whole page. The CSS gradient is the sky itself
+ * and shows instantly; the canvases (stars) fade in once src/scripts/sky.js
+ * has painted them. Nothing here is interactive or announced to screen readers.
+ */
+---
+<div class="sky" data-sky aria-hidden="true">
+  <canvas class="sky__field"></canvas>
+  <canvas class="sky__live"></canvas>
+</div>
+
+<style>
+  .sky {
+    position: fixed;
+    inset: 0 0 auto 0;
+    /* Large viewport height: the mobile URL bar showing or hiding never resizes it. */
+    height: 100lvh;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(110% 70% at 85% -10%, rgba(44, 58, 128, 0.45) 0%, transparent 60%),
+      radial-gradient(90% 60% at -10% 110%, rgba(26, 52, 96, 0.4) 0%, transparent 60%),
+      linear-gradient(180deg, #050919 0%, #08102a 55%, #0a1230 100%);
+  }
+  .sky canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    transition: opacity 1.6s var(--ease-soft);
+  }
+  .sky:global(.is-ready) canvas { opacity: 1; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sky canvas { transition: none; }
+  }
+</style>
+
+<script>
+  import '../scripts/sky.js';
+</script>

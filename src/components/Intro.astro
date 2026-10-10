@@ -1,0 +1,19 @@
+---
+import { site } from '../data/site';
+const { intro } = site;
+---
+<section id="story" class="section-y">
+  <div class="shell grid gap-12 md:grid-cols-12">
+    <div class="md:col-span-4">
+      <p class="eyebrow reveal">{intro.eyebrow}</p>
+      <div class="reveal-line mt-6 h-px w-full" style="background: var(--gold-grad)"></div>
+    </div>
+
+    <div class="md:col-span-8">
+      <h2 class="display reveal text-[clamp(2.2rem,5.5vw,4.4rem)]">{intro.title}</h2>
+      {intro.body.map((p, i) => (
+        <p class={`reveal d${i + 1} mt-7 max-w-2xl text-base leading-relaxed dim`}>{p}</p>
+      ))}
+    </div>
+  </div>
+</section>

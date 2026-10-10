@@ -1,0 +1,77 @@
+---
+import Img from './Img.astro';
+import { site } from '../data/site';
+const { hero } = site;
+---
+<section id="top" class="hero relative flex min-h-[100svh] items-end overflow-hidden">
+  <!-- The photo dissolves into the night sky at its edges instead of ending on a hard line. -->
+  <div class="hero__media absolute inset-0">
+    <Img
+      src={hero.img}
+      alt={hero.alt}
+      width={2000}
+      height={1333}
+      loading="eager"
+      fetchpriority="high"
+      class="hero__img h-full w-full object-cover"
+    />
+  </div>
+
+  <div class="shell relative w-full pb-[clamp(56px,10vw,140px)]">
+    <p class="eyebrow reveal">{hero.eyebrow}</p>
+
+    <h1 class="display reveal d1 mt-6 text-[clamp(4rem,13vw,10rem)]">{hero.title}</h1>
+
+    <p class="reveal d2 mt-2 display text-[clamp(1.4rem,3.4vw,2.6rem)] gold-text">
+      {site.tagline}
+    </p>
+
+    <p class="reveal d3 mt-8 max-w-xl text-base leading-relaxed dim">{hero.lede}</p>
+
+    <div class="reveal d4 mt-10 flex flex-wrap gap-4">
+      <a
+        href={hero.primary.href}
+        class="rounded-full bg-gold px-8 py-3.5 text-[0.75rem] uppercase tracking-[0.2em] text-navy transition-transform duration-300 ease-soft hover:-translate-y-0.5"
+      >{hero.primary.label}</a>
+      <a
+        href={hero.secondary.href}
+        class="rounded-full border border-cream/25 px-8 py-3.5 text-[0.75rem] uppercase tracking-[0.2em] text-cream transition-colors duration-300 hover:border-gold hover:text-gold"
+      >{hero.secondary.label}</a>
+    </div>
+  </div>
+</section>
+
+<style>
+  /* Screen blend: the black studio backdrop of the photo drops away and the
+     night sky shows through it, so the plate looks like it floats among the stars. */
+  .hero__media {
+    mix-blend-mode: screen;
+    -webkit-mask-image:
+      linear-gradient(to bottom, #000 0%, #000 50%, transparent 95%),
+      linear-gradient(to right, transparent 0%, #000 42%);
+    -webkit-mask-composite: source-in;
+    mask-image:
+      linear-gradient(to bottom, #000 0%, #000 50%, transparent 95%),
+      linear-gradient(to right, transparent 0%, #000 42%);
+    mask-composite: intersect;
+  }
+  .hero__img {
+    object-position: 50% 40%;
+    filter: brightness(0.7) contrast(1.15);
+  }
+
+  /* Wide screens: shift the plate right so the title sits on open sky. */
+  @media (min-width: 900px) {
+    .hero__media { left: 24%; }
+  }
+  /* Narrow screens: the plate takes the top of the screen and fades into the
+     sky above the title, instead of sitting behind it. */
+  @media (max-width: 899px) {
+    .hero__media {
+      bottom: 30%;
+      -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 55%, transparent 100%);
+      mask-image: linear-gradient(to bottom, #000 0%, #000 55%, transparent 100%);
+    }
+    .hero__img { filter: brightness(0.62) contrast(1.15); object-position: 58% 50%; }
+  }
+</style>

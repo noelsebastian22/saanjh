@@ -1,0 +1,46 @@
+---
+import Img from './Img.astro';
+import { site } from '../data/site';
+const { locations } = site;
+---
+<section id="visit" class="section-y">
+  <div class="shell">
+    <p class="eyebrow reveal">{locations.eyebrow}</p>
+    <h2 class="display reveal d1 mt-5 text-[clamp(2.2rem,5.5vw,4.4rem)]">{locations.title}</h2>
+
+    <div class="mt-16 grid gap-10 md:grid-cols-2">
+      {locations.venues.map((venue, i) => (
+        <article
+          class={`glass reveal d${i + 1} overflow-hidden rounded-[var(--radius)] border`}
+          style="border-color: var(--line)"
+          data-tilt="4"
+        >
+          <Img
+            src={venue.img}
+            alt={venue.city}
+            width={1000}
+            height={700}
+            loading="lazy"
+            class="aspect-[10/7] w-full object-cover"
+          />
+          <div class="p-8">
+            <h3 class="display text-3xl">{venue.city}</h3>
+            <p class="mt-4 text-sm leading-relaxed dim">{venue.address}</p>
+            <p class="mt-1 text-sm leading-relaxed dim">{venue.hours}</p>
+            <div class="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3">
+              <a
+                href={`tel:${venue.phone.replace(/\s/g, '')}`}
+                class="text-sm text-gold transition-opacity duration-300 hover:opacity-70"
+              >{venue.phone}</a>
+              <a
+                href="#reserve"
+                data-book-venue={venue.id}
+                class="text-[0.72rem] uppercase tracking-[0.18em] text-cream underline decoration-gold/50 underline-offset-[6px] transition-colors hover:text-gold"
+              >Book a table here</a>
+            </div>
+          </div>
+        </article>
+      ))}
+    </div>
+  </div>
+</section>

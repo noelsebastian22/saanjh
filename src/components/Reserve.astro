@@ -1,0 +1,992 @@
+---
+/**
+ * Reservations. A two-step booking flow plus a confirmation:
+ *   1. Your table   venue, party size, a date from the calendar, a time slot
+ *   2. Your details name, email, phone, occasion, requests
+ *   3. Confirmed    summary, reference, add-to-calendar (.ics)
+ *
+ * Opening days, sittings and the booking window come from src/data/site.ts.
+ * Availability is simulated (deterministic per date, time and party size) so
+ * the calendar behaves like a live one; swap slotsFor() for a real API later.
+ *
+ * Requests are sent with Web3Forms when PUBLIC_WEB3FORMS_KEY is set (see
+ * .env.example). Without a key the flow runs in demo mode and says so.
+ */
+import Logo from './Logo.astro';
+import { site } from '../data/site';
+const { reserve, locations } = site;
+const venues = locations.venues;
+
+const area = (address: string) => address.split(',')[0].replace(/^\d+\s+/, '');
+const bookingData = {
+  windowDays: reserve.windowDays,
+  maxGuests: reserve.maxGuests,
+  brand: site.brand,
+  venues: venues.map((v) => ({
+    id: v.id,
+    name: v.city,
+    area: area(v.address),
+    address: v.address,
+    phone: v.phone,
+    booking: v.booking,
+  })),
+};
+const guestOptions = Array.from({ length: reserve.maxGuests }, (_, i) => i + 1);
+const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+---
+<section id="reserve" class="reserve section-y" aria-labelledby="reserve-title">
+  <div class="shell grid gap-14 lg:grid-cols-12 lg:gap-10">
+    <div class="lg:col-span-5">
+      <div class="lg:sticky lg:top-32">
+        <p class="eyebrow reveal">{reserve.eyebrow}</p>
+        <h2 id="reserve-title" class="display reveal d1 mt-6 max-w-xl text-[clamp(2.6rem,6vw,5rem)]">{reserve.title}</h2>
+        <p class="reveal d2 mt-7 max-w-md text-base leading-relaxed dim">{reserve.body}</p>
+
+        <dl class="reserve__venues reveal d3 mt-12">
+          {venues.map((v) => (
+            <div class="reserve__venue">
+              <dt class="display text-[1.6rem]">{v.city}</dt>
+              <dd class="mt-1.5 text-sm dim">{area(v.address)}. {v.hours}</dd>
+              <dd class="mt-1 text-sm">
+                <a class="text-gold transition-opacity hover:opacity-70" href={`tel:${v.phone.replace(/\s/g, '')}`}>{v.phone}</a>
+              </dd>
+            </div>
+          ))}
+        </dl>
+
+        <p class="reveal d4 mt-10 max-w-md text-sm leading-relaxed dim">
+          {reserve.groups.text}{' '}
+          <a class="text-gold underline decoration-gold/40 underline-offset-4 hover:decoration-gold" href={reserve.groups.href}>{reserve.groups.label}</a>{' '}
+          or ask about{' '}
+          <a class="text-gold underline decoration-gold/40 underline-offset-4 hover:decoration-gold" href={reserve.privateHire.href}>{reserve.privateHire.label.toLowerCase()}</a>.
+        </p>
+      </div>
+    </div>
+
+    <div class="lg:col-span-7">
+      <div class="booking reveal d2" data-booking>
+        <noscript>
+          <p class="booking__noscript">Online booking needs JavaScript. Call {venues[0].city} on {venues[0].phone} or {venues[1].city} on {venues[1].phone} and we will find you a table.</p>
+        </noscript>
+
+        <form class="booking__form" novalidate data-booking-form>
+          <ol class="booking__steps" data-steps aria-label="Booking progress">
+            <li data-step-label="1" aria-current="step"><span class="booking__step-num">1</span>Your table</li>
+            <li data-step-label="2"><span class="booking__step-num">2</span>Your details</li>
+          </ol>
+
+          <!-- Step 1: the table -->
+          <div class="booking__panel" data-step="1">
+            <fieldset class="bfield">
+              <legend class="bfield__label">Where</legend>
+              <div class="venue-toggle">
+                {bookingData.venues.map((v, i) => (
+                  <label class="venue-option">
+                    <input type="radio" name="venue" value={v.id} checked={i === 0} />
+                    <span class="venue-option__name">{v.name}</span>
+                    <span class="venue-option__area">{v.area}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <fieldset class="bfield">
+              <legend class="bfield__label">Guests</legend>
+              <div class="guest-grid">
+                {guestOptions.map((n) => (
+                  <label class="guest-option">
+                    <input type="radio" name="guests" value={n} checked={n === 2} />
+                    <span>{n}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <div class="booking__when">
+              <fieldset class="bfield">
+                <legend class="bfield__label">Date</legend>
+                <div class="cal" data-calendar>
+                  <div class="cal__head">
+                    <button type="button" class="cal__nav" data-cal-prev aria-label="Previous month">
+                      <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                    </button>
+                    <p class="cal__month display" id="cal-month" data-cal-month aria-live="polite"></p>
+                    <button type="button" class="cal__nav" data-cal-next aria-label="Next month">
+                      <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                    </button>
+                  </div>
+                  <table class="cal__grid" role="grid" aria-labelledby="cal-month">
+                    <thead>
+                      <tr>{weekdays.map((d) => <th scope="col" abbr={d}>{d.slice(0, 2)}</th>)}</tr>
+                    </thead>
+                    <tbody data-cal-body></tbody>
+                  </table>
+                  <p class="cal__key"><span class="cal__key-swatch" aria-hidden="true"></span>Struck-through dates are closed or fully booked.</p>
+                </div>
+              </fieldset>
+
+              <fieldset class="bfield">
+                <legend class="bfield__label">Time</legend>
+                <div class="slots" data-slots>
+                  <p class="slots__empty">Pick a date to see the times we can seat you.</p>
+                </div>
+              </fieldset>
+            </div>
+
+            <div class="booking__foot">
+              <p class="booking__summary" data-summary aria-live="polite">Choose a date and time.</p>
+              <button type="button" class="booking__btn" data-next disabled>Continue</button>
+            </div>
+          </div>
+
+          <!-- Step 2: the guest -->
+          <div class="booking__panel" data-step="2" hidden>
+            <div class="booking__recap">
+              <p data-recap></p>
+              <button type="button" class="booking__textbtn" data-back>Change</button>
+            </div>
+
+            <div class="booking__fields">
+              <div class="binput">
+                <label for="b-name">Full name</label>
+                <input id="b-name" name="name" type="text" autocomplete="name" required aria-describedby="b-name-err" />
+                <p class="binput__error" id="b-name-err"></p>
+              </div>
+              <div class="binput">
+                <label for="b-phone">Phone</label>
+                <input id="b-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" required aria-describedby="b-phone-err" />
+                <p class="binput__error" id="b-phone-err"></p>
+              </div>
+              <div class="binput binput--wide">
+                <label for="b-email">Email</label>
+                <input id="b-email" name="email" type="email" autocomplete="email" required aria-describedby="b-email-err" />
+                <p class="binput__error" id="b-email-err"></p>
+              </div>
+              <div class="binput binput--wide">
+                <label for="b-occasion">Occasion <span class="faint">(optional)</span></label>
+                <select id="b-occasion" name="occasion">
+                  <option value="">No occasion</option>
+                  {reserve.occasions.map((o) => <option value={o}>{o}</option>)}
+                </select>
+              </div>
+              <div class="binput binput--wide">
+                <label for="b-notes">Allergies or requests <span class="faint">(optional)</span></label>
+                <textarea id="b-notes" name="notes" rows="3" maxlength="500" placeholder="A high chair, a nut allergy, a quiet corner..."></textarea>
+              </div>
+              <label class="bcheck binput--wide">
+                <input type="checkbox" name="stories" value="yes" />
+                <span>Send me the occasional letter from the kitchen: new dishes, supper clubs, the odd recipe.</span>
+              </label>
+              <input type="checkbox" name="botcheck" class="booking__honeypot" tabindex="-1" autocomplete="off" aria-hidden="true" />
+            </div>
+
+            <p class="booking__policy">We hold tables for fifteen minutes. If your plans change, a quick call frees the table for someone else.</p>
+
+            <div class="booking__foot">
+              <p class="booking__error" data-submit-error role="alert"></p>
+              <button type="submit" class="booking__btn" data-submit>Request this table</button>
+            </div>
+          </div>
+
+          <!-- Step 3: confirmation -->
+          <div class="booking__panel booking__done" data-step="3" hidden>
+            <span class="booking__done-mark"><Logo variant="mark" size={58} /></span>
+            <h3 class="display booking__done-title" tabindex="-1" data-done-title>Request received.</h3>
+            <p class="booking__done-text dim" data-done-text></p>
+            <dl class="booking__done-list" data-done-list></dl>
+            <p class="booking__demo" data-demo-note hidden>This is a demo site, so no request was actually sent.</p>
+            <div class="booking__done-actions">
+              <button type="button" class="booking__btn" data-ics>Add to calendar</button>
+              <button type="button" class="booking__textbtn" data-restart>Make another booking</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script type="application/json" id="booking-data" set:html={JSON.stringify(bookingData)} />
+</section>
+
+<style is:global>
+  .booking {
+    --b-line: rgba(246, 241, 231, 0.12);
+    --b-line-strong: rgba(246, 241, 231, 0.28);
+    position: relative;
+    container-type: inline-size;
+    border: 1px solid var(--line);
+    border-radius: 22px;
+    background: linear-gradient(160deg, rgba(22, 34, 74, 0.62), rgba(10, 18, 48, 0.72));
+    backdrop-filter: blur(18px) saturate(1.15);
+    -webkit-backdrop-filter: blur(18px) saturate(1.15);
+    box-shadow: 0 40px 80px -40px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(239, 215, 154, 0.08);
+    padding: clamp(20px, 3.4vw, 44px);
+  }
+  .booking__noscript { color: var(--cream-dim); line-height: 1.6; margin-bottom: 1.5rem; }
+  .booking :focus-visible { outline: 2px solid var(--color-gold-hi); outline-offset: 2px; }
+
+  /* Progress */
+  .booking__steps {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: clamp(24px, 3vw, 36px);
+    font-size: 0.72rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--cream-faint);
+  }
+  .booking__steps li { display: flex; align-items: center; gap: 10px; transition: color 0.4s; }
+  .booking__steps li + li::before {
+    content: '';
+    width: clamp(24px, 6cqi, 64px);
+    height: 1px;
+    background: var(--b-line-strong);
+    margin-right: 2px;
+  }
+  .booking__steps li[aria-current='step'] { color: var(--color-cream); }
+  .booking__steps li[data-done='true'] { color: var(--color-gold); }
+  .booking__step-num {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    border: 1px solid currentColor;
+    font-size: 0.68rem;
+    letter-spacing: 0;
+  }
+  .booking__steps li[aria-current='step'] .booking__step-num { background: var(--color-gold); border-color: var(--color-gold); color: var(--color-navy); }
+
+  .booking__panel { animation: booking-in 0.55s var(--ease-soft); }
+  @keyframes booking-in { from { opacity: 0; transform: translateY(12px); } }
+
+  /* Field groups */
+  .bfield { border: 0; padding: 0; margin: 0 0 clamp(22px, 2.6vw, 30px); min-width: 0; }
+  .bfield__label {
+    padding: 0;
+    margin-bottom: 12px;
+    font-size: 0.7rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--color-gold);
+  }
+
+  /* Venue switch */
+  .venue-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .venue-option {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 14px 18px;
+    border: 1px solid var(--b-line);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: border-color 0.3s, background-color 0.3s;
+  }
+  .venue-option input, .guest-option input, .slot input {
+    position: absolute;
+    opacity: 0;
+    inset: 0;
+    margin: 0;
+    cursor: inherit;
+  }
+  .venue-option__name { font-family: var(--font-display); font-size: 1.35rem; line-height: 1.1; }
+  .venue-option__area { font-size: 0.8rem; color: var(--cream-faint); }
+  .venue-option:hover { border-color: var(--b-line-strong); }
+  .venue-option:has(input:checked) {
+    border-color: var(--color-gold);
+    background: rgba(201, 162, 75, 0.09);
+  }
+  .venue-option:has(input:focus-visible) { outline: 2px solid var(--color-gold-hi); outline-offset: 2px; }
+
+  /* Party size */
+  .guest-grid { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 8px; }
+  .guest-option { position: relative; cursor: pointer; }
+  .guest-option span {
+    display: grid;
+    place-items: center;
+    height: 46px;
+    border: 1px solid var(--b-line);
+    border-radius: 999px;
+    font-variant-numeric: tabular-nums;
+    transition: border-color 0.3s, background-color 0.3s, color 0.3s;
+  }
+  .guest-option:hover span { border-color: var(--b-line-strong); }
+  .guest-option input:checked + span { background: var(--color-gold); border-color: var(--color-gold); color: var(--color-navy); font-weight: 600; }
+  .guest-option input:focus-visible + span { outline: 2px solid var(--color-gold-hi); outline-offset: 2px; }
+
+  /* Date + time sit side by side once the card is wide enough */
+  .booking__when { display: grid; gap: 0 clamp(24px, 4cqi, 44px); }
+  @container (min-width: 620px) {
+    .booking__when { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); }
+    .booking__when > .bfield + .bfield { padding-left: clamp(24px, 4cqi, 44px); border-left: 1px solid var(--b-line); }
+  }
+
+  /* Calendar */
+  .cal__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .cal__month { font-size: 1.45rem; }
+  .cal__nav {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 999px;
+    border: 1px solid var(--b-line);
+    color: var(--color-cream);
+    transition: border-color 0.3s, opacity 0.3s;
+  }
+  .cal__nav:hover:not(:disabled) { border-color: var(--color-gold); color: var(--color-gold); }
+  .cal__nav:disabled { opacity: 0.25; cursor: default; }
+  .cal__grid { width: 100%; border-collapse: separate; border-spacing: 2px 3px; table-layout: fixed; }
+  .cal__grid th {
+    padding: 6px 0;
+    font-size: 0.68rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    color: var(--cream-faint);
+    text-align: center;
+  }
+  .cal__grid td { padding: 0; text-align: center; }
+  .cal__day {
+    position: relative;
+    width: 100%;
+    max-width: 46px;
+    aspect-ratio: 1;
+    border-radius: 999px;
+    font-size: 0.9rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-cream);
+    transition: background-color 0.25s, color 0.25s, box-shadow 0.25s;
+  }
+  .cal__day:hover:not([aria-disabled='true']) { box-shadow: inset 0 0 0 1px var(--color-gold); }
+  .cal__day[aria-disabled='true'] { color: rgba(246, 241, 231, 0.24); cursor: default; }
+  .cal__day[data-status='closed'],
+  .cal__day[data-status='full'] { text-decoration: line-through; text-decoration-color: rgba(246, 241, 231, 0.3); }
+  .cal__day[data-today='true']::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: 5px;
+    width: 4px;
+    height: 4px;
+    margin-left: -2px;
+    border-radius: 999px;
+    background: var(--color-gold);
+  }
+  .cal__day[aria-pressed='true'] { background: var(--color-gold); color: var(--color-navy); font-weight: 600; }
+  .cal__day[aria-pressed='true']::after { background: var(--color-navy); }
+  .cal__key { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 0.75rem; color: var(--cream-faint); }
+  .cal__key-swatch { width: 14px; height: 1px; background: rgba(246, 241, 231, 0.4); }
+
+  /* Time slots */
+  .slots { min-height: 120px; }
+  .slots__empty { font-size: 0.9rem; line-height: 1.6; color: var(--cream-faint); padding-top: 6px; }
+  .slots__group + .slots__group { margin-top: 18px; }
+  .slots__heading { font-family: var(--font-display); font-size: 1.2rem; margin-bottom: 10px; }
+  .slots__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 8px; }
+  .slot { position: relative; cursor: pointer; }
+  .slot span {
+    display: grid;
+    place-items: center;
+    height: 42px;
+    border: 1px solid var(--b-line);
+    border-radius: 10px;
+    font-size: 0.86rem;
+    font-variant-numeric: tabular-nums;
+    transition: border-color 0.25s, background-color 0.25s, color 0.25s;
+  }
+  .slot:hover span { border-color: var(--b-line-strong); }
+  .slot input:checked + span { background: var(--color-gold); border-color: var(--color-gold); color: var(--color-navy); font-weight: 600; }
+  .slot input:focus-visible + span { outline: 2px solid var(--color-gold-hi); outline-offset: 2px; }
+  .slot input:disabled + span { color: rgba(246, 241, 231, 0.24); text-decoration: line-through; border-style: dashed; cursor: default; }
+  .slot:has(input:disabled) { cursor: default; }
+  .slots__full { font-size: 0.9rem; line-height: 1.6; color: var(--cream-dim); }
+
+  /* Footer row */
+  .booking__foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px 24px;
+    padding-top: clamp(20px, 2.4vw, 28px);
+    border-top: 1px solid var(--b-line);
+  }
+  .booking__summary { font-size: 0.92rem; color: var(--cream-dim); }
+  .booking__summary strong { color: var(--color-cream); font-weight: 500; }
+  .booking__btn {
+    margin-left: auto;
+    border-radius: 999px;
+    background: var(--color-gold);
+    color: var(--color-navy);
+    padding: 15px 34px;
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    font-weight: 600;
+    transition: transform 0.3s var(--ease-soft), opacity 0.3s, background-color 0.3s;
+  }
+  .booking__btn:hover:not(:disabled) { transform: translateY(-2px); background: var(--color-gold-hi); }
+  .booking__btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .booking__btn[aria-busy='true'] { opacity: 0.7; cursor: progress; }
+  .booking__textbtn {
+    font-size: 0.75rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-gold);
+    text-decoration: underline;
+    text-decoration-color: rgba(201, 162, 75, 0.4);
+    text-underline-offset: 5px;
+  }
+  .booking__textbtn:hover { text-decoration-color: var(--color-gold); }
+
+  /* Step 2 */
+  .booking__recap {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 20px;
+    margin-bottom: 26px;
+    border-radius: 12px;
+    background: rgba(201, 162, 75, 0.08);
+    border: 1px solid rgba(201, 162, 75, 0.3);
+    font-size: 0.95rem;
+  }
+  .booking__fields { display: grid; gap: 18px 16px; }
+  @container (min-width: 520px) {
+    .booking__fields { grid-template-columns: 1fr 1fr; }
+    .binput--wide { grid-column: 1 / -1; }
+  }
+  .binput label { display: block; margin-bottom: 8px; font-size: 0.82rem; color: var(--cream-dim); }
+  .binput input,
+  .binput select,
+  .binput textarea {
+    width: 100%;
+    padding: 13px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--b-line);
+    background: rgba(5, 9, 26, 0.45);
+    color: var(--color-cream);
+    font: inherit;
+    font-size: 0.95rem;
+    transition: border-color 0.25s, background-color 0.25s;
+  }
+  .binput select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24'%3E%3Cpath d='M5 9l7 7 7-7' fill='none' stroke='%23C9A24B' stroke-width='2'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 16px center;
+  }
+  .binput select option { background: var(--color-navy); }
+  .binput textarea { resize: vertical; min-height: 92px; line-height: 1.5; }
+  .binput ::placeholder { color: rgba(246, 241, 231, 0.3); }
+  .binput input:hover, .binput select:hover, .binput textarea:hover { border-color: var(--b-line-strong); }
+  .binput input:focus, .binput select:focus, .binput textarea:focus {
+    outline: none;
+    border-color: var(--color-gold);
+    background: rgba(5, 9, 26, 0.65);
+  }
+  .binput [aria-invalid='true'] { border-color: #E58C7A; }
+  .binput__error { min-height: 0; margin-top: 6px; font-size: 0.78rem; color: #F0A898; }
+  .binput__error:empty { display: none; }
+  .bcheck { display: flex; gap: 12px; align-items: flex-start; font-size: 0.85rem; line-height: 1.5; color: var(--cream-dim); cursor: pointer; }
+  .bcheck input { margin-top: 3px; width: 16px; height: 16px; accent-color: var(--color-gold); flex: none; }
+  .booking__honeypot { position: absolute; left: -9999px; }
+  .booking__policy { margin: 22px 0 24px; font-size: 0.8rem; line-height: 1.6; color: var(--cream-faint); }
+  .booking__error { font-size: 0.85rem; color: #F0A898; max-width: 32ch; }
+  .booking__error:empty { display: none; }
+
+  /* Confirmation */
+  .booking__done { text-align: center; padding: clamp(8px, 2vw, 24px) 0; }
+  .booking__done-mark { display: inline-block; color: var(--color-gold); animation: mark-glow 2.4s var(--ease-soft) 1; }
+  @keyframes mark-glow { 0% { filter: drop-shadow(0 0 0 rgba(239, 215, 154, 0)); } 40% { filter: drop-shadow(0 0 18px rgba(239, 215, 154, 0.6)); } 100% { filter: drop-shadow(0 0 0 rgba(239, 215, 154, 0)); } }
+  .booking__done-title { margin-top: 18px; font-size: clamp(2.2rem, 6cqi, 3.2rem); outline: none; }
+  .booking__done-text { max-width: 42ch; margin: 14px auto 0; line-height: 1.6; }
+  .booking__done-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1px;
+    margin: 30px auto 0;
+    max-width: 520px;
+    border: 1px solid var(--b-line);
+    border-radius: 14px;
+    overflow: hidden;
+    background: var(--b-line);
+    text-align: left;
+  }
+  .booking__done-list div { padding: 14px 18px; background: rgba(10, 18, 48, 0.92); }
+  .booking__done-list div:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .booking__done-list dt { font-size: 0.68rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--color-gold); }
+  .booking__done-list dd { margin-top: 4px; font-size: 0.98rem; }
+  .booking__demo { margin-top: 18px; font-size: 0.8rem; color: var(--cream-faint); }
+  .booking__done-actions { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 18px 28px; margin-top: 30px; }
+
+  @container (max-width: 420px) {
+    .guest-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .venue-option { padding: 12px 14px; }
+    .venue-option__name { font-size: 1.15rem; }
+    .booking__foot .booking__btn { width: 100%; }
+    .booking__done-list { grid-template-columns: 1fr; }
+  }
+
+  .reserve__venues { display: grid; gap: 22px; }
+  .reserve__venue { padding-top: 18px; border-top: 1px solid var(--line); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .booking__panel, .booking__done-mark { animation: none; }
+  }
+</style>
+
+<script>
+  type Booking = { days: number[]; sittings: [string, string][]; step: number };
+  type Venue = { id: string; name: string; area: string; address: string; phone: string; booking: Booking };
+  type Data = { windowDays: number; maxGuests: number; brand: string; venues: Venue[] };
+  type Slot = { time: string; minutes: number; sitting: string; available: boolean };
+  type Status = 'open' | 'past' | 'closed' | 'full' | 'out';
+
+  const KEY = import.meta.env.PUBLIC_WEB3FORMS_KEY as string | undefined;
+  const LEAD_MINUTES = 60;
+  const DINNER_MINUTES = 120;
+
+  const root = document.querySelector<HTMLElement>('[data-booking]');
+  const raw = document.getElementById('booking-data')?.textContent;
+  if (root && raw) initBooking(root, JSON.parse(raw) as Data);
+
+  function initBooking(root: HTMLElement, data: Data) {
+    const form = root.querySelector<HTMLFormElement>('[data-booking-form]')!;
+    const $ = <T extends Element = HTMLElement>(sel: string) => root.querySelector<T>(sel)!;
+    const panels = [...root.querySelectorAll<HTMLElement>('[data-step]')];
+    const stepLabels = [...root.querySelectorAll<HTMLElement>('[data-step-label]')];
+    const calBody = $('[data-cal-body]');
+    const calMonth = $('[data-cal-month]');
+    const calPrev = $<HTMLButtonElement>('[data-cal-prev]');
+    const calNext = $<HTMLButtonElement>('[data-cal-next]');
+    const slotsEl = $('[data-slots]');
+    const summary = $('[data-summary]');
+    const nextBtn = $<HTMLButtonElement>('[data-next]');
+    const submitBtn = $<HTMLButtonElement>('[data-submit]');
+    const submitError = $('[data-submit-error]');
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    const fmtLong = new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+    const fmtFull = new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const fmtMonth = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric' });
+
+    const today = startOfDay(new Date());
+    const lastDay = addDays(today, data.windowDays);
+
+    const state = {
+      venue: data.venues[0],
+      guests: 2,
+      date: null as Date | null,
+      time: null as string | null,
+      view: new Date(today.getFullYear(), today.getMonth(), 1),
+      focus: today,
+      ref: '',
+    };
+
+    /* ---------- dates and slots ---------- */
+
+    function startOfDay(d: Date) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+    function addDays(d: Date, n: number) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); }
+    function sameDay(a: Date | null, b: Date | null) { return !!a && !!b && a.getTime() === b.getTime(); }
+    function iso(d: Date) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+    function toMinutes(t: string) { const [h, m] = t.split(':').map(Number); return h * 60 + m; }
+    function hhmm(min: number) { return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`; }
+    function label12(t: string) {
+      const min = toMinutes(t);
+      const h = Math.floor(min / 60), m = min % 60;
+      const suffix = h >= 12 ? 'pm' : 'am';
+      const h12 = h % 12 || 12;
+      return m ? `${h12}:${String(m).padStart(2, '0')}${suffix}` : `${h12}${suffix}`;
+    }
+    /* Stable 0..1 number per string, so the same table is always booked or free. */
+    function hash(s: string) {
+      let h = 2166136261;
+      for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+      return ((h >>> 0) % 10000) / 10000;
+    }
+
+    function slotsFor(venue: Venue, date: Date, guests: number): Slot[] {
+      if (!venue.booking.days.includes(date.getDay())) return [];
+      const now = new Date();
+      const isToday = sameDay(date, today);
+      const nowMin = now.getHours() * 60 + now.getMinutes();
+      const weekend = date.getDay() === 5 || date.getDay() === 6;
+      const out: Slot[] = [];
+      for (const [from, to] of venue.booking.sittings) {
+        const sitting = toMinutes(from) < 16 * 60 ? 'Lunch' : 'Dinner';
+        for (let m = toMinutes(from); m <= toMinutes(to); m += venue.booking.step) {
+          if (isToday && m < nowMin + LEAD_MINUTES) continue;
+          const prime = m >= 19 * 60 && m <= 20 * 60 + 30;
+          let busy = 0.14;
+          if (guests >= 5) busy += 0.14;
+          if (guests >= 7) busy += 0.16;
+          if (prime) busy += 0.14;
+          if (prime && weekend) busy += 0.26;
+          const time = hhmm(m);
+          out.push({ time, minutes: m, sitting, available: hash(`${venue.id}|${iso(date)}|${time}`) > busy });
+        }
+      }
+      return out;
+    }
+
+    function statusOf(date: Date): Status {
+      if (date < today) return 'past';
+      if (date > lastDay) return 'out';
+      if (!state.venue.booking.days.includes(date.getDay())) return 'closed';
+      return slotsFor(state.venue, date, state.guests).some((s) => s.available) ? 'open' : 'full';
+    }
+    const statusText: Record<Status, string> = {
+      open: 'available', past: 'in the past', out: 'not yet open for booking', closed: 'closed', full: 'fully booked',
+    };
+
+    /* ---------- calendar ---------- */
+
+    function renderCalendar(focusAfter = false) {
+      const y = state.view.getFullYear(), mo = state.view.getMonth();
+      calMonth.textContent = fmtMonth.format(state.view);
+      calPrev.disabled = y === today.getFullYear() && mo === today.getMonth();
+      calNext.disabled = new Date(y, mo + 1, 1) > lastDay;
+
+      /* Keep the roving focus target inside this month. */
+      if (state.focus.getMonth() !== mo || state.focus.getFullYear() !== y) {
+        const first = new Date(y, mo, 1);
+        state.focus = state.date && state.date.getMonth() === mo ? state.date : first < today ? today : first;
+      }
+
+      const lead = (new Date(y, mo, 1).getDay() + 6) % 7;
+      const days = new Date(y, mo + 1, 0).getDate();
+      const rows: string[] = [];
+      let cells: string[] = [];
+      for (let i = 0; i < lead; i++) cells.push('<td></td>');
+      for (let d = 1; d <= days; d++) {
+        const date = new Date(y, mo, d);
+        const status = statusOf(date);
+        const selected = sameDay(date, state.date);
+        const isFocus = sameDay(date, state.focus);
+        cells.push(
+          `<td role="gridcell" aria-selected="${selected}"><button type="button" class="cal__day" data-date="${iso(date)}" data-status="${status}"` +
+          ` aria-pressed="${selected}" aria-disabled="${status !== 'open'}" tabindex="${isFocus ? 0 : -1}"` +
+          `${sameDay(date, today) ? ' data-today="true"' : ''} aria-label="${fmtFull.format(date)}, ${statusText[status]}">${d}</button></td>`
+        );
+        if (cells.length === 7) { rows.push(`<tr>${cells.join('')}</tr>`); cells = []; }
+      }
+      if (cells.length) {
+        while (cells.length < 7) cells.push('<td></td>');
+        rows.push(`<tr>${cells.join('')}</tr>`);
+      }
+      calBody.innerHTML = rows.join('');
+      if (focusAfter) calBody.querySelector<HTMLButtonElement>('[tabindex="0"]')?.focus();
+    }
+
+    function fromIso(s: string) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); }
+
+    calBody.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.cal__day');
+      if (!btn || btn.getAttribute('aria-disabled') === 'true') return;
+      selectDate(fromIso(btn.dataset.date!));
+    });
+
+    calBody.addEventListener('keydown', (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.cal__day');
+      if (!btn) return;
+      const current = fromIso(btn.dataset.date!);
+      const moves: Record<string, () => Date> = {
+        ArrowLeft: () => addDays(current, -1),
+        ArrowRight: () => addDays(current, 1),
+        ArrowUp: () => addDays(current, -7),
+        ArrowDown: () => addDays(current, 7),
+        Home: () => addDays(current, -((current.getDay() + 6) % 7)),
+        End: () => addDays(current, 6 - ((current.getDay() + 6) % 7)),
+        PageUp: () => new Date(current.getFullYear(), current.getMonth() - 1, current.getDate()),
+        PageDown: () => new Date(current.getFullYear(), current.getMonth() + 1, current.getDate()),
+      };
+      if (!(e.key in moves)) return;
+      e.preventDefault();
+      let target = moves[e.key]();
+      if (target < today) target = today;
+      if (target > lastDay) target = lastDay;
+      state.focus = target;
+      state.view = new Date(target.getFullYear(), target.getMonth(), 1);
+      renderCalendar(true);
+    });
+
+    calPrev.addEventListener('click', () => { state.view = new Date(state.view.getFullYear(), state.view.getMonth() - 1, 1); renderCalendar(); });
+    calNext.addEventListener('click', () => { state.view = new Date(state.view.getFullYear(), state.view.getMonth() + 1, 1); renderCalendar(); });
+
+    function selectDate(date: Date) {
+      state.date = date;
+      state.focus = date;
+      const slots = slotsFor(state.venue, date, state.guests);
+      if (state.time && !slots.find((s) => s.time === state.time && s.available)) state.time = null;
+      renderCalendar(true);
+      renderSlots();
+      updateSummary();
+      /* On phones the times sit below the calendar: bring them into view. */
+      const box = slotsEl.getBoundingClientRect();
+      if (box.top > window.innerHeight - 140) {
+        window.scrollBy({ top: box.top - window.innerHeight * 0.45, behavior: reduced ? 'auto' : 'smooth' });
+      }
+    }
+
+    /* ---------- time slots ---------- */
+
+    function renderSlots() {
+      if (!state.date) {
+        slotsEl.innerHTML = '<p class="slots__empty">Pick a date to see the times we can seat you.</p>';
+        return;
+      }
+      const slots = slotsFor(state.venue, state.date, state.guests);
+      const open = slots.filter((s) => s.available);
+      if (!open.length) {
+        slotsEl.innerHTML = `<p class="slots__full">We are full for ${state.guests} on ${fmtLong.format(state.date)}. Try another date, or call ${state.venue.phone} to join the waitlist.</p>`;
+        return;
+      }
+      const groups = new Map<string, Slot[]>();
+      for (const s of slots) groups.set(s.sitting, [...(groups.get(s.sitting) ?? []), s]);
+      const showHeadings = groups.size > 1;
+      slotsEl.innerHTML = [...groups].map(([sitting, list]) => `
+        <div class="slots__group" role="radiogroup" aria-label="${sitting} times">
+          ${showHeadings ? `<p class="slots__heading">${sitting}</p>` : ''}
+          <div class="slots__grid">
+            ${list.map((s) => `
+              <label class="slot">
+                <input type="radio" name="time" value="${s.time}" ${s.available ? '' : 'disabled'} ${state.time === s.time ? 'checked' : ''}
+                  aria-label="${label12(s.time)}${s.available ? '' : ', fully booked'}" />
+                <span aria-hidden="true">${label12(s.time)}</span>
+              </label>`).join('')}
+          </div>
+        </div>`).join('');
+    }
+
+    slotsEl.addEventListener('change', (e) => {
+      const input = e.target as HTMLInputElement;
+      if (input.name !== 'time') return;
+      state.time = input.value;
+      updateSummary();
+    });
+
+    /* ---------- venue and guests ---------- */
+
+    form.addEventListener('change', (e) => {
+      const input = e.target as HTMLInputElement;
+      if (input.name === 'venue') {
+        state.venue = data.venues.find((v) => v.id === input.value)!;
+      } else if (input.name === 'guests') {
+        state.guests = Number(input.value);
+      } else return;
+      /* A date that no longer works for this venue or party size is cleared, not silently kept. */
+      if (state.date && statusOf(state.date) !== 'open') { state.date = null; state.time = null; }
+      if (state.date && state.time && !slotsFor(state.venue, state.date, state.guests).find((s) => s.time === state.time && s.available)) state.time = null;
+      renderCalendar();
+      renderSlots();
+      updateSummary();
+    });
+
+    /* ---------- summary and steps ---------- */
+
+    function describe() {
+      if (!state.date) return '';
+      const guests = `${state.guests} ${state.guests === 1 ? 'guest' : 'guests'}`;
+      const when = state.time ? `${fmtLong.format(state.date)} at ${label12(state.time)}` : fmtLong.format(state.date);
+      return `<strong>${when}</strong>, ${guests}, ${state.venue.name}`;
+    }
+
+    function updateSummary() {
+      const ready = !!(state.date && state.time);
+      nextBtn.disabled = !ready;
+      if (!state.date) summary.textContent = 'Choose a date and time.';
+      else if (!state.time) summary.innerHTML = `${describe()}. Now choose a time.`;
+      else summary.innerHTML = describe();
+    }
+
+    function show(step: number) {
+      panels.forEach((p) => { p.hidden = Number(p.dataset.step) !== step; });
+      stepLabels.forEach((li) => {
+        const n = Number(li.dataset.stepLabel);
+        if (n === step) li.setAttribute('aria-current', 'step'); else li.removeAttribute('aria-current');
+        li.dataset.done = String(n < step);
+      });
+      $('[data-steps]').hidden = step === 3;
+      /* Panels differ in height: keep the top of the card in view, clear of the fixed header. */
+      const top = root.getBoundingClientRect().top;
+      if (top < 96) window.scrollTo({ top: window.scrollY + top - 104, behavior: reduced ? 'auto' : 'smooth' });
+    }
+
+    nextBtn.addEventListener('click', () => {
+      if (nextBtn.disabled) return;
+      $('[data-recap]').innerHTML = describe();
+      show(2);
+      setTimeout(() => $<HTMLInputElement>('#b-name').focus({ preventScroll: true }), 50);
+    });
+    $('[data-back]').addEventListener('click', () => {
+      show(1);
+      calBody.querySelector<HTMLButtonElement>('[tabindex="0"]')?.focus({ preventScroll: true });
+    });
+
+    /* ---------- validation ---------- */
+
+    const fields: [string, (v: string) => string][] = [
+      ['name', (v) => (v.trim().length < 2 ? 'Enter the name the table is under.' : '')],
+      ['phone', (v) => (v.replace(/[^\d]/g, '').length < 7 ? 'Enter a phone number we can reach you on.' : '')],
+      ['email', (v) => (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) ? '' : 'Enter an email address, like name@example.com.')],
+    ];
+    let attempted = false;
+
+    function validate(): HTMLInputElement | null {
+      let firstBad: HTMLInputElement | null = null;
+      for (const [name, check] of fields) {
+        const input = form.elements.namedItem(name) as HTMLInputElement;
+        const msg = check(input.value);
+        input.setAttribute('aria-invalid', String(!!msg));
+        root.querySelector(`#b-${name}-err`)!.textContent = msg;
+        if (msg && !firstBad) firstBad = input;
+      }
+      return firstBad;
+    }
+    form.addEventListener('input', (e) => {
+      if (attempted && (e.target as HTMLElement).closest('.binput')) validate();
+    });
+
+    /* ---------- submit ---------- */
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!state.date || !state.time) return show(1);
+      attempted = true;
+      const bad = validate();
+      if (bad) { bad.focus(); return; }
+
+      const fd = new FormData(form);
+      if (fd.get('botcheck')) return;
+      /* Reference without look-alike characters (no 0/O, 1/I/L), easy to read out on the phone. */
+      const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+      state.ref = 'Q-' + Array.from(crypto.getRandomValues(new Uint32Array(6)), (n) => alphabet[n % alphabet.length]).join('');
+
+      const payload = {
+        access_key: KEY,
+        subject: `Table request: ${fmtLong.format(state.date)}, ${label12(state.time)}, ${state.guests} guests (${state.venue.name})`,
+        from_name: `${data.brand} website`,
+        reference: state.ref,
+        venue: `${state.venue.name}, ${state.venue.address}`,
+        date: fmtFull.format(state.date),
+        time: label12(state.time),
+        guests: state.guests,
+        name: String(fd.get('name')).trim(),
+        email: String(fd.get('email')).trim(),
+        phone: String(fd.get('phone')).trim(),
+        occasion: String(fd.get('occasion') || 'None'),
+        requests: String(fd.get('notes') || '').trim() || 'None',
+        newsletter: fd.get('stories') ? 'Yes' : 'No',
+      };
+
+      submitBtn.disabled = true;
+      submitBtn.setAttribute('aria-busy', 'true');
+      submitBtn.textContent = 'Sending...';
+      submitError.textContent = '';
+
+      try {
+        if (KEY) {
+          const res = await fetch('https://api.web3forms.com/submit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const json = await res.json().catch(() => ({}));
+          if (!res.ok || json.success === false) throw new Error(json.message || res.statusText);
+        } else {
+          await new Promise((r) => setTimeout(r, 900));
+        }
+        showConfirmation(payload.name, payload.email);
+      } catch {
+        submitError.textContent = `Your request did not go through. Check your connection and try again, or call ${state.venue.phone}.`;
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.removeAttribute('aria-busy');
+        submitBtn.textContent = 'Request this table';
+      }
+    });
+
+    function showConfirmation(name: string, email: string) {
+      const first = name.split(/\s+/)[0];
+      const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+      $('[data-done-text]').innerHTML =
+        `Thank you, ${esc(first)}. We will confirm by email to <span class="text-cream">${esc(email)}</span> within a few hours.`;
+      const rows: [string, string][] = [
+        ['Date', fmtLong.format(state.date!)],
+        ['Time', label12(state.time!)],
+        ['Guests', String(state.guests)],
+        ['Reference', state.ref],
+        ['Where', `${state.venue.name}, ${state.venue.address}`],
+      ];
+      $('[data-done-list]').innerHTML = rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('');
+      $('[data-demo-note]').hidden = !!KEY;
+      show(3);
+      setTimeout(() => $('[data-done-title]').focus({ preventScroll: true }), 60);
+    }
+
+    /* ---------- add to calendar ---------- */
+
+    $('[data-ics]').addEventListener('click', () => {
+      if (!state.date || !state.time) return;
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const stamp = (d: Date) => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+      const start = new Date(state.date);
+      start.setMinutes(toMinutes(state.time));
+      const end = new Date(start.getTime() + DINNER_MINUTES * 60000);
+      const now = new Date();
+      const utc = `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}T${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}00Z`;
+      const escIcs = (s: string) => s.replace(/[,;\\]/g, (c) => `\\${c}`);
+      const ics = [
+        'BEGIN:VCALENDAR', 'VERSION:2.0', `PRODID:-//${data.brand}//Reservations//EN`, 'CALSCALE:GREGORIAN', 'BEGIN:VEVENT',
+        `UID:${state.ref}@${data.brand.toLowerCase()}`,
+        `DTSTAMP:${utc}`,
+        `DTSTART:${stamp(start)}`,
+        `DTEND:${stamp(end)}`,
+        `SUMMARY:${escIcs(`${data.brand}, ${state.venue.name}`)}`,
+        `LOCATION:${escIcs(state.venue.address)}`,
+        `DESCRIPTION:${escIcs(`Table for ${state.guests}. Reference ${state.ref}. To change your booking call ${state.venue.phone}.`)}`,
+        'END:VEVENT', 'END:VCALENDAR',
+      ].join('\r\n');
+      const url = URL.createObjectURL(new Blob([ics], { type: 'text/calendar;charset=utf-8' }));
+      const a = Object.assign(document.createElement('a'), { href: url, download: `${data.brand.toLowerCase()}-${iso(state.date)}.ics` });
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    });
+
+    $('[data-restart]').addEventListener('click', () => {
+      const keepVenue = state.venue.id;
+      form.reset();
+      (form.querySelector(`input[name="venue"][value="${keepVenue}"]`) as HTMLInputElement).checked = true;
+      attempted = false;
+      form.querySelectorAll('[aria-invalid]').forEach((el) => el.removeAttribute('aria-invalid'));
+      form.querySelectorAll('.binput__error').forEach((el) => (el.textContent = ''));
+      state.guests = 2; state.date = null; state.time = null;
+      state.view = new Date(today.getFullYear(), today.getMonth(), 1);
+      state.focus = today;
+      renderCalendar(); renderSlots(); updateSummary();
+      show(1);
+    });
+
+    /* "Book a table here" links elsewhere on the page arrive with their venue picked. */
+    document.querySelectorAll<HTMLElement>('[data-book-venue]').forEach((link) => {
+      link.addEventListener('click', () => {
+        const input = form.querySelector<HTMLInputElement>(`input[name="venue"][value="${link.dataset.bookVenue}"]`);
+        if (!input || input.checked) return;
+        input.checked = true;
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    });
+
+    /* ---------- boot ---------- */
+    renderCalendar();
+    renderSlots();
+    updateSummary();
+  }
+</script>

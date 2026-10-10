@@ -1,0 +1,51 @@
+---
+import '@fontsource-variable/cormorant-garamond';
+import '@fontsource-variable/manrope';
+import '../styles/global.css';
+import { site } from '../data/site';
+import Sky from '../components/Sky.astro';
+
+interface Props { title?: string; description?: string; }
+const { title = `${site.brand} | Modern Indian kitchen, London`, description = site.description } = Astro.props;
+const canonical = new URL(Astro.url.pathname, Astro.site);
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Restaurant',
+  name: site.brand,
+  description: site.description,
+  servesCuisine: 'Indian',
+  url: canonical.href,
+  address: site.locations.venues.map((v) => ({
+    '@type': 'PostalAddress',
+    streetAddress: v.address,
+  })),
+};
+---
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical.href} />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical.href} />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <meta name="theme-color" content="#060A1F" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://images.unsplash.com" />
+    <script type="application/ld+json" set:html={JSON.stringify(jsonLd)}></script>
+  </head>
+  <body>
+    <Sky />
+    <slot />
+    <script>
+      import '../scripts/motion.js';
+    </script>
+  </body>
+</html>

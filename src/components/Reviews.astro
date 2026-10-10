@@ -1,0 +1,27 @@
+---
+import { site } from '../data/site';
+const { reviews } = site;
+const track = [...reviews.items, ...reviews.items, ...reviews.items];
+---
+<section class="reviews section-y">
+  <div class="shell">
+    <p class="eyebrow reveal">{reviews.eyebrow}</p>
+  </div>
+
+  <div class="marquee reveal d1 mt-10" style="--marquee-dur: 80s">
+    <div class="marquee__track gap-6 px-6">
+      {track.map((review, i) => (
+        <blockquote
+          class="testi__item flex w-[clamp(260px,32vw,400px)] shrink-0 flex-col justify-between rounded-[var(--radius)] border p-8"
+          style="border-color: var(--line); background: rgba(14, 24, 56, 0.55)"
+          aria-hidden={i >= reviews.items.length ? 'true' : undefined}
+        >
+          <p class="display text-[1.35rem] leading-snug">{review.quote}</p>
+          <footer class="mt-8 text-[0.72rem] uppercase tracking-[0.18em] faint">
+            {review.author} · {review.source}
+          </footer>
+        </blockquote>
+      ))}
+    </div>
+  </div>
+</section>
